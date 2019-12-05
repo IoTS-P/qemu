@@ -41,6 +41,7 @@
 #include "sysemu/sev.h"
 #include "migration/qemu-memfile.h"
 #include "migration/savevm.h"
+#include "migration/global_state.h"
 
 #include "hw/boards.h"
 
@@ -1607,6 +1608,7 @@ static int kvm_dev_save_snapshot(void)
 {
     static bool unregistered = false;
     int ret = -1;
+    int ret_gss = -1;
     struct kvm_dev_snapshot s;
     size_t ssize;
     Error *err = NULL;
@@ -1615,6 +1617,15 @@ static int kvm_dev_save_snapshot(void)
     if (kvm_dev_snapshot && !unregistered) {
         vmstate_unregister_blacklisted_devices();
         unregistered = true;
+    }
+
+    ret_gss = global_state_store();
+    if (ret_gss) {
+        error_setg(&err, "Error saving global state");
+        if (err) {
+            error_report_err(err);
+            abort();
+        }
     }
 
     if (qemu_savevm_state(f, &err) < 0) {
