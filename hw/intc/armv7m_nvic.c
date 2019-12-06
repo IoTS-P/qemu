@@ -636,11 +636,11 @@ static void do_armv7m_nvic_set_pending(void *opaque, int irq, bool secure,
             s->cpu->env.v7m.hfsr |= R_V7M_HFSR_FORCED_MASK;
         }
     }
-
-    if (!vec->pending) {
+// comment the vec->pending judgement in case multi-interrupt race, but that will incur too many interrupt requests
+//    if (!vec->pending) {
         vec->pending = 1;
         nvic_irq_update(s);
-    }
+//    }
 }
 
 void armv7m_nvic_set_pending(void *opaque, int irq, bool secure)
@@ -671,9 +671,13 @@ void armv7m_nvic_acknowledge_irq(void *opaque)
     }
 
     assert(vec->enabled);
-    assert(vec->pending);
-   // printf("check vectpending_prio=0x%x\n",s->vectpending_prio);
-   // printf("check running=0x%x\n",running);
+
+    //assert(vec->pending); // comment this in case interrupt race
+    /* while (s->vectpending_prio >= running || vec->pending == 0) { */
+        /* printf("wait to complete 0x%x\n", vec->pending); */
+        /* usleep(1); */
+    /* } */
+
     assert(s->vectpending_prio < running);
 
     trace_nvic_acknowledge_irq(pending, s->vectpending_prio);
@@ -726,12 +730,15 @@ int armv7m_nvic_complete_irq(void *opaque, int irq, bool secure)
 
     trace_nvic_complete_irq(irq, secure);
 
-    if (!vec->active) {
-        /* Tell the caller this was an illegal exception return */
-        return -1;
-    }
-
+//   if (!vec->active) {
+//       // Tell the caller this was an illegal exception return
+//       return -1;
+//   }
+//  assert(vec->active); /* Tell the caller this was an illegal exception return */
     ret = nvic_rettobase(s);
+    if (vec->active == 0) {
+        printf(" should not be here complete 0x%x irq num = %d\n", vec->pending, irq);
+    }
 
     vec->active = 0;
     if (vec->level) {
