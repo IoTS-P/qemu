@@ -42,6 +42,7 @@
 typedef enum MPS2FPGAType {
     FPGA_AN385,
     FPGA_AN511,
+    FPGA_ANS2E,
 } MPS2FPGAType;
 
 typedef struct {
@@ -65,11 +66,15 @@ typedef struct {
     MemoryRegion blockram_m3;
     MemoryRegion sram;
     MPS2SCC scc;
+    //IoTS2E only
+    MemoryRegion s2erom;
+    MemoryRegion s2eram;
 } MPS2MachineState;
 
 #define TYPE_MPS2_MACHINE "mps2"
 #define TYPE_MPS2_AN385_MACHINE MACHINE_TYPE_NAME("mps2-an385")
 #define TYPE_MPS2_AN511_MACHINE MACHINE_TYPE_NAME("mps2-an511")
+#define TYPE_MPS2_ANS2E_MACHINE MACHINE_TYPE_NAME("mps2-ans2e")
 
 #define MPS2_MACHINE(obj)                                       \
     OBJECT_CHECK(MPS2MachineState, obj, TYPE_MPS2_MACHINE)
@@ -79,7 +84,7 @@ typedef struct {
     OBJECT_CLASS_CHECK(MPS2MachineClass, klass, TYPE_MPS2_MACHINE)
 
 /* Main SYSCLK frequency in Hz */
-#define SYSCLK_FRQ 25000000
+#define SYSCLK_FRQ 12000000
 
 /* Initialize the auxiliary RAM region @mr and map it into
  * the memory map at @base.
@@ -144,12 +149,17 @@ static void mps2_common_init(MachineState *machine)
      * This is of no use for QEMU so we don't implement it (as if
      * zbt_boot_ctrl is always zero).
      */
-    memory_region_allocate_system_memory(&mms->psram,
-                                         NULL, "mps.ram", 0x1000000);
-    memory_region_add_subregion(system_memory, 0x21000000, &mms->psram);
+    /*
+     * ANS2E only:
+     *  0x00000000 .. 0x003fffff : default ROM
+     *  0x20000000 .. 0x2001ffff : default RAM
+    */
 
-    kvm_register_fixed_memory_region("mps.ram", (uintptr_t) memory_region_get_ram_ptr(&mms->psram),0x1000000, 0);
-
+    if (mmc->fpga_type != FPGA_ANS2E) {
+        memory_region_allocate_system_memory(&mms->psram,
+                                             NULL, "mps.ram", 0x1000000);
+        memory_region_add_subregion(system_memory, 0x21000000, &mms->psram);
+    }
     switch (mmc->fpga_type) {
     case FPGA_AN385:
         make_ram(&mms->ssram1, "mps.ssram1", 0x0, 0x400000);
@@ -167,13 +177,15 @@ static void mps2_common_init(MachineState *machine)
         break;
     case FPGA_AN511:
         make_ram(&mms->blockram, "mps.blockram", 0x0, 0x40000);
-        kvm_register_fixed_memory_region("mps.blockram", (uintptr_t) memory_region_get_ram_ptr(&mms->blockram),0x40000, 1);
         make_ram(&mms->ssram1, "mps.ssram1", 0x00400000, 0x00800000);
-        kvm_register_fixed_memory_region("mps.ssram1", (uintptr_t) memory_region_get_ram_ptr(&mms->ssram1),0x00800000, 1);
         make_ram(&mms->sram, "mps.sram", 0x20000000, 0x20000);
-        kvm_register_fixed_memory_region("mps.sram", (uintptr_t) memory_region_get_ram_ptr(&mms->sram),0x20000, 0);
         make_ram(&mms->ssram23, "mps.ssram23", 0x20400000, 0x400000);
-        kvm_register_fixed_memory_region("mps.ssram23", (uintptr_t) memory_region_get_ram_ptr(&mms->ssram23),0x400000, 0);
+        break;
+    case FPGA_ANS2E:
+        make_ram(&mms->s2erom, "mps.s2erom", 0x0, 0x400000);
+        kvm_register_fixed_memory_region("mps.s2erom", (uintptr_t) memory_region_get_ram_ptr(&mms->s2erom),0x400000, 1);
+        make_ram(&mms->s2eram, "mps.s2eram", 0x20000000, 0x400000);
+        kvm_register_fixed_memory_region("mps.s2eram", (uintptr_t) memory_region_get_ram_ptr(&mms->s2eram),0x400000, 0);
         break;
     default:
         g_assert_not_reached();
@@ -189,6 +201,9 @@ static void mps2_common_init(MachineState *machine)
     case FPGA_AN511:
         qdev_prop_set_uint32(armv7m, "num-irq", 64);
         break;
+    case FPGA_ANS2E:
+        qdev_prop_set_uint32(armv7m, "num-irq", 128);
+        break;
     default:
         g_assert_not_reached();
     }
@@ -198,24 +213,30 @@ static void mps2_common_init(MachineState *machine)
     object_property_set_bool(OBJECT(&mms->armv7m), true, "realized",
                              &error_fatal);
 
-    create_unimplemented_device("zbtsmram mirror", 0x00400000, 0x00400000);
-    create_unimplemented_device("RESERVED 1", 0x00800000, 0x00800000);
-    create_unimplemented_device("Block RAM", 0x01000000, 0x00010000);
-    create_unimplemented_device("RESERVED 2", 0x01010000, 0x1EFF0000);
-    create_unimplemented_device("RESERVED 3", 0x20800000, 0x00800000);
-    create_unimplemented_device("PSRAM", 0x21000000, 0x01000000);
-    /* These three ranges all cover multiple devices; we may implement
-     * some of them below (in which case the real device takes precedence
-     * over the unimplemented-region mapping).
-     */
-    create_unimplemented_device("CMSDK APB peripheral region @0x40000000",
+    if (mmc->fpga_type == FPGA_ANS2E) {
+        create_unimplemented_device("RESERVED ROM", 0x00400000, 0x00C00000);
+        create_unimplemented_device("RESERVED RAM", 0x20400000, 0x00C00000);
+    } else {
+        create_unimplemented_device("zbtsmram mirror", 0x00400000, 0x00400000);
+        create_unimplemented_device("RESERVED 1", 0x00800000, 0x00800000);
+        create_unimplemented_device("Block RAM", 0x01000000, 0x00010000);
+        create_unimplemented_device("RESERVED 2", 0x01010000, 0x1EFF0000);
+        create_unimplemented_device("RESERVED 3", 0x20800000, 0x00800000);
+        create_unimplemented_device("PSRAM", 0x21000000, 0x01000000);
+        /* These three ranges all cover multiple devices; we may implement
+        * some of them below (in which case the real device takes precedence
+        * over the unimplemented-region mapping).
+        */
+        create_unimplemented_device("CMSDK APB peripheral region @0x40000000",
                                 0x40000000, 0x00010000);
-    create_unimplemented_device("CMSDK peripheral region @0x40010000",
+        create_unimplemented_device("CMSDK peripheral region @0x40010000",
                                 0x40010000, 0x00010000);
-    create_unimplemented_device("Extra peripheral region @0x40020000",
+        create_unimplemented_device("Extra peripheral region @0x40020000",
                                 0x40020000, 0x00010000);
-    create_unimplemented_device("RESERVED 4", 0x40030000, 0x001D0000);
-    create_unimplemented_device("VGA", 0x41000000, 0x0200000);
+        create_unimplemented_device("RESERVED 4", 0x40030000, 0x001D0000);
+        create_unimplemented_device("VGA", 0x41000000, 0x0200000);
+    }
+
 
     switch (mmc->fpga_type) {
     case FPGA_AN385:
@@ -296,10 +317,48 @@ static void mps2_common_init(MachineState *machine)
         }
         break;
     }
+    case FPGA_ANS2E:
+    {
+        /* The overflow IRQs for all UARTs are ORed together.
+         * Tx and Rx IRQs for each UART are ORed together.
+         */
+        Object *orgate;
+        DeviceState *orgate_dev;
+
+        orgate = object_new(TYPE_OR_IRQ);
+        object_property_set_int(orgate, 2, "num-lines", &error_fatal);
+        object_property_set_bool(orgate, true, "realized", &error_fatal);
+        orgate_dev = DEVICE(orgate);
+        /* UART 0/1/2/3/4 overflow interrupt INTISR bit is 12 */
+        qdev_connect_gpio_out(orgate_dev, 0, qdev_get_gpio_in(armv7m, 12));
+
+        /* system irq numbers for the combined tx/rx for each UART */
+        static const int uart_txrx_irqno = 0;
+        static const hwaddr uartbase = 0x40004000;
+        Object *txrx_orgate;
+        DeviceState *txrx_orgate_dev;
+
+        txrx_orgate = object_new(TYPE_OR_IRQ);
+        object_property_set_int(txrx_orgate, 2, "num-lines", &error_fatal);
+        object_property_set_bool(txrx_orgate, true, "realized",
+                                 &error_fatal);
+        txrx_orgate_dev = DEVICE(txrx_orgate);
+        qdev_connect_gpio_out(txrx_orgate_dev, 0,
+                              qdev_get_gpio_in(armv7m, uart_txrx_irqno));
+        cmsdk_apb_uart_create(uartbase,
+                              qdev_get_gpio_in(txrx_orgate_dev, 0),
+                              qdev_get_gpio_in(txrx_orgate_dev, 1),
+                              qdev_get_gpio_in(orgate_dev, 0),
+                              qdev_get_gpio_in(orgate_dev, 1),
+                              NULL,
+                              serial_hd(0), SYSCLK_FRQ);
+        break;
+    }
     default:
         g_assert_not_reached();
     }
 
+    if (mmc->fpga_type != FPGA_ANS2E) {
     cmsdk_apb_timer_create(0x40000000, qdev_get_gpio_in(armv7m, 8), SYSCLK_FRQ);
     cmsdk_apb_timer_create(0x40001000, qdev_get_gpio_in(armv7m, 9), SYSCLK_FRQ);
 
@@ -319,7 +378,7 @@ static void mps2_common_init(MachineState *machine)
     lan9118_init(&nd_table[0], 0x40200000,
                  qdev_get_gpio_in(armv7m,
                                   mmc->fpga_type == FPGA_AN385 ? 13 : 47));
-
+    }
     system_clock_scale = NANOSECONDS_PER_SECOND / SYSCLK_FRQ;
 
     armv7m_load_kernel(ARM_CPU(first_cpu), machine->kernel_filename,
@@ -356,6 +415,16 @@ static void mps2_an511_class_init(ObjectClass *oc, void *data)
     mmc->scc_id = 0x4104000 | (511 << 4);
 }
 
+static void mps2_ans2e_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    MPS2MachineClass *mmc = MPS2_MACHINE_CLASS(oc);
+
+    mc->desc = "ARM MPS2 with ANS2E DesignStart FPGA image for Cortex-M3";
+    mmc->fpga_type = FPGA_ANS2E;
+    mc->default_cpu_type = ARM_CPU_TYPE_NAME("cortex-m3");
+}
+
 static const TypeInfo mps2_info = {
     .name = TYPE_MPS2_MACHINE,
     .parent = TYPE_MACHINE,
@@ -377,11 +446,18 @@ static const TypeInfo mps2_an511_info = {
     .class_init = mps2_an511_class_init,
 };
 
+static const TypeInfo mps2_ans2e_info = {
+    .name = TYPE_MPS2_ANS2E_MACHINE,
+    .parent = TYPE_MPS2_MACHINE,
+    .class_init = mps2_ans2e_class_init,
+};
+
 static void mps2_machine_init(void)
 {
     type_register_static(&mps2_info);
     type_register_static(&mps2_an385_info);
     type_register_static(&mps2_an511_info);
+    type_register_static(&mps2_ans2e_info);
 }
 
 type_init(mps2_machine_init);
