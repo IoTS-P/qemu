@@ -225,7 +225,13 @@ int kvm_has_many_ioeventfds(void);
 int kvm_has_gsi_routing(void);
 int kvm_has_intx_set_mask(void);
 
+typedef struct KVM_INIT_MR {
+    uint32_t baseaddr;
+    uint32_t size;
+} kvm_mr;
+
 int kvm_register_fixed_memory_region(const char *name, uintptr_t start, uint64_t size, int shared_concrete);
+int kvm_register_user_custom_memory_region(uint32_t *baseaddr, uint32_t *size, int num, int is_rom);
 int kvm_mem_rw(void *dest, const void *source, uint64_t size, int is_write);
 int kvm_has_mem_rw(void);
 int kvm_disk_rw(void *buffer, uint64_t sector, int count, int is_write);

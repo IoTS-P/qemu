@@ -987,6 +987,9 @@ struct kvm_ppc_resize_hpt {
    can invoke hypervisor's entry points */
 #define KVM_CAP_UPCALLS 260
 
+/* This capability allows user to customize memory regions */
+#define KVM_CAP_USER_CUSTOM_MEM_REGION 301
+
 /****************************************/
 
 #ifdef KVM_CAP_IRQ_ROUTING
@@ -1492,6 +1495,17 @@ struct kvm_dev_upcalls {
 
 /* Available with KVM_CAP_UPCALLS */
 #define KVM_REGISTER_UPCALLS _IOWR(KVMIO, 0xf9, unsigned *)
+
+/* Available with KVM_CAP_USER_CUSTOM_MEM_REGION */
+struct kvm_mem_init {
+    __u32 baseaddr;
+    __u32 size;
+    __u8 num;
+    /* If is_rom == 0, indicates expected memoy region is ram */
+    __u8 is_rom;
+};
+
+#define KVM_MEM_REGION_INIT _IOWR(KVMIO, 0xf9, struct kvm_mem_init)
 
 /* Secure Encrypted Virtualization command */
 enum sev_cmd_id {

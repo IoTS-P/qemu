@@ -160,6 +160,10 @@ static bool kvm_has_clock_scale;
 static bool kvm_has_upcalls;
 #endif
 
+#ifdef KVM_CAP_USER_CUSTOM_MEM_REGION
+static bool kvm_user_custom_mem_region;
+#endif
+
 bool kvm_has_dbt;
 
 
@@ -1693,6 +1697,36 @@ static int kvm_dev_restore_snapshot(void)
 }
 #endif
 
+#ifdef KVM_CAP_USER_CUSTOM_MEM_REGION
+int kvm_register_user_custom_memory_region(uint32_t *baseaddr, uint32_t *size, int num, int is_rom)
+{
+    int ret = -1;
+    struct kvm_mem_init mr;
+
+    if (!kvm_user_custom_mem_region) {
+        return -1;
+    }
+
+    mr.num = num;
+    mr.is_rom = is_rom;
+    mr.baseaddr = 0x0;
+    mr.size = 0x0;
+    ret = kvm_vm_ioctl(kvm_state, KVM_MEM_REGION_INIT, &mr);
+    if (ret < 0) {
+        return -1;
+    }
+
+    *baseaddr = mr.baseaddr;
+    *size = mr.size;
+    return ret;
+}
+#else
+int kvm_register_user_custom_memory_region(uint32_t *baseaddr, uint32_t *size, int num, int is_rom)
+{
+    return -1;
+}
+#endif
+
 #ifdef KVM_CAP_KVM
 int kvm_has_dbt(void) {
     return kvm_has_dbt;
@@ -1969,6 +2003,10 @@ static int kvm_init(MachineState *ms)
     // expected by virtual devices (especially VAPIC), so this flag
     // lets these devices to take into account the different behavior.
     kvm_has_dbt = kvm_check_extension(s, KVM_CAP_DBT);
+#endif
+
+#ifdef KVM_CAP_USER_CUSTOM_MEM_REGION
+    kvm_user_custom_mem_region = kvm_check_extension(s, KVM_CAP_USER_CUSTOM_MEM_REGION);
 #endif
 
     kvm_state = s;
