@@ -16,6 +16,17 @@
 #include "qemu/error-report.h"
 
 /**
+ * kvm_cortex_m_vcpu_init:
+ * @env: CPUARMState
+ *
+ * initlize or reinitlize the entry, msp and vtor (customized by user) of cortex-m VCPU by invoking the
+ * cotex-m reg write ioctl with the CPUARMState
+ *
+ * Returns: 0 if success else < 0 error code
+ */
+int kvm_cortex_m_vcpu_init(CPUState *cs);
+
+/**
  * kvm_cortex_m_set_regs:
  * @env: CPUARMState
  *

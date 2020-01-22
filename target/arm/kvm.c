@@ -37,6 +37,28 @@ static bool cap_has_mp_state;
 
 static ARMHostCPUFeatures arm_host_cpu_features;
 
+int kvm_cortex_m_vcpu_init(CPUState *cs)
+{
+    int ret;
+
+    ARMCPU *cpu = ARM_CPU(cs);
+    CPUARMState *env=&cpu->env;
+
+    struct kvm_m_vcpu_init init;
+
+    ret = kvm_vcpu_ioctl(cs, KVM_CUSTOM_M_INIT, &init);
+    if (ret < 0)
+        return ret;
+
+    env->regs[15] = init.entry & ~1;
+    env->regs[13] = init.msp_init & 0xFFFFFFFC;
+    env->v7m.vecbase[0] = init.vtor;
+    env->thumb = init.entry & 1;
+
+    printf(" entry = 0x%x vecbase = 0x%x msp_init = 0x%x ret = %d\n", init.entry, init.vtor, init.msp_init, ret);
+    return ret;
+}
+
 int kvm_cortex_m_set_regs(CPUState *cs) 
 {
     ARMCPU *cpu = ARM_CPU(cs);

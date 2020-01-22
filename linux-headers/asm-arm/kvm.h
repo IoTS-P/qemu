@@ -119,6 +119,13 @@ struct kvm_m_sregs {
     __u32 thumb;
     void *nvic;
 };
+
+struct kvm_m_vcpu_init {
+    __u32 entry;
+    __u32 msp_init;
+    __u32 vtor;
+};
+
 struct kvm_sregs {
 
 };

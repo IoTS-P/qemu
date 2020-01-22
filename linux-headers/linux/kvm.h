@@ -1344,6 +1344,7 @@ struct kvm_s390_ucas_mapping {
 #define KVM_SET_M_REGS _IOW(KVMIO, 0xc1, struct kvm_m_regs)
 #define KVM_GET_M_SREGS _IOR(KVMIO, 0xc2, struct kvm_m_sregs)
 #define KVM_SET_M_SREGS _IOW(KVMIO, 0xc3, struct kvm_m_sregs)
+#define KVM_CUSTOM_M_INIT _IOR(KVMIO, 0xc4, struct kvm_m_vcpu_init)
 
 #define KVM_TRANSLATE             _IOWR(KVMIO, 0x85, struct kvm_translation)
 #define KVM_INTERRUPT             _IOW(KVMIO,  0x86, struct kvm_interrupt)
