@@ -6921,7 +6921,7 @@ static void v7m_exception_taken(ARMCPU *cpu, uint32_t lr, bool dotailchain,
      * we can go ahead and activate whichever exception we're going to
      * take (which might now be the derived exception).
      */
-    armv7m_nvic_acknowledge_irq(env->nvic);
+    armv7m_nvic_acknowledge_irq(env->nvic, exc);
 
     /* Switch to target security state -- must do this before writing SPSEL */
     switch_v7m_security_state(env, targets_secure);

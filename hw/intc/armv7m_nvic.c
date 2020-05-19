@@ -403,6 +403,7 @@ bool armv7m_nvic_can_take_pending_exception(void *opaque, int *irq_num)
     const int vectpending_prio = s->vectpending_prio;
     const int pending = s->vectpending;
     *irq_num = pending;
+
     return  running > vectpending_prio;
 }
 
@@ -656,11 +657,12 @@ void armv7m_nvic_set_pending_derived(void *opaque, int irq, bool secure)
 }
 
 /* Make pending IRQ active.  */
-void armv7m_nvic_acknowledge_irq(void *opaque)
+void armv7m_nvic_acknowledge_irq(void *opaque, int irq)
 {
     NVICState *s = (NVICState *)opaque;
     /* CPUARMState *env = &s->cpu->env; */
-    const int pending = s->vectpending;
+    //const int pending = s->vectpending;
+    const int pending = irq;
     const int running = nvic_exec_prio(s);
     VecInfo *vec;
 
@@ -782,6 +784,18 @@ static void set_irq_level(void *opaque, int n, int level)
             armv7m_nvic_set_pending(s, n, false);
         }
     }
+}
+
+void armv7m_nvic_set_external_peripheral_irq(void *opaque, int n, int level)
+{
+    NVICState *s = opaque;
+
+    n += NVIC_FIRST_IRQ;
+
+    assert(n >= NVIC_FIRST_IRQ && n < s->num_irq);
+
+    /* trigger an external interrupt is once*/
+    armv7m_nvic_set_pending(s, n, false);
 }
 
 static uint32_t nvic_readl(NVICState *s, uint32_t offset, MemTxAttrs attrs)
@@ -1826,6 +1840,22 @@ static MemTxResult nvic_sysreg_read(void *opaque, hwaddr addr,
     return MEMTX_OK;
 }
 
+uint32_t armv7m_nvic_get_active_external_irq(void *opaque, unsigned serial)
+{
+    NVICState *s = (NVICState *)opaque;
+    uint32_t val = 0;
+    unsigned i, startvec;
+
+    startvec = serial*8 + NVIC_FIRST_IRQ;
+    for (i = 0; i < 32 && startvec + i < s->num_irq; i++) {
+        if (s->vectors[startvec + i].enabled &&
+            s->itns[startvec + i]) {
+            val |= (1 << i);
+        }
+    }
+    return val;
+}
+
 static MemTxResult nvic_sysreg_write(void *opaque, hwaddr addr,
                                      uint64_t value, unsigned size,
                                      MemTxAttrs attrs)
@@ -1926,6 +1956,19 @@ static MemTxResult nvic_sysreg_write(void *opaque, hwaddr addr,
     return MEMTX_OK;
 }
 
+void armv7m_nvic_enable_all_external_irq(void *opaque, unsigned serial, bool enable)
+{
+    unsigned i, startvec;
+    NVICState *s = (NVICState *)opaque;
+
+    startvec = 8*serial + NVIC_FIRST_IRQ;
+    for (i = 0; i < 32 && startvec + i < s->num_irq; i++) {
+        if (s->itns[NVIC_FIRST_IRQ + i]) {
+            s->vectors[NVIC_FIRST_IRQ + i].enabled = enable;
+        }
+    }
+    nvic_irq_update(s);
+}
 static const MemoryRegionOps nvic_sysreg_ops = {
     .read_with_attrs = nvic_sysreg_read,
     .write_with_attrs = nvic_sysreg_write,
@@ -1987,6 +2030,11 @@ static MemTxResult nvic_systick_write(void *opaque, hwaddr addr,
     /* Direct the access to the correct systick */
     mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->systick[attrs.secure]), 0);
     return memory_region_dispatch_write(mr, addr, value, size, attrs);
+}
+
+void armv7m_nvic_enable_systick(void *opaque, int mode)
+{
+    nvic_systick_write(opaque, 0, mode, 4, MEMTXATTRS_UNSPECIFIED);
 }
 
 static MemTxResult nvic_systick_read(void *opaque, hwaddr addr,

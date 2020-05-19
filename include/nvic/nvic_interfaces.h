@@ -44,12 +44,13 @@ void armv7m_nvic_get_pending_irq_info(void *opaque, int *pirq,
 /**
  * armv7m_nvic_acknowledge_irq: make highest priority pending exception active
  * @opaque: the NVIC
+ * @irq: pending irq num for get irq info
  *
  * Move the current highest priority pending exception from the pending
  * state to the active state, and update v7m.exception to indicate that
  * it is the exception currently being handled.
  */
-void armv7m_nvic_acknowledge_irq(void *opaque);
+void armv7m_nvic_acknowledge_irq(void *opaque, int irq);
 /**
  * armv7m_nvic_complete_irq: complete specified interrupt or exception
  * @opaque: the NVIC
@@ -72,3 +73,31 @@ static inline bool armv7m_nvic_can_take_pending_exception(void *opaque, int *irq
     return true;
 }
 #endif
+
+/**
+ * armv7m_nvic_set_external_peripheral_irq: mark the external peripheral exception as pending
+ * @opaque: the NVIC
+ * @irq: the external peripheral exception number to mark pending
+ * @level: set vec level
+ */
+void armv7m_nvic_set_external_peripheral_irq(void *opaque, int n, int level);
+
+/**
+ * armv7m_nvic_enable_all_external_irq: enable all external peripheral exceptions(i.e., write begin with 0xe000e100)
+ * @opaque: the NVIC
+ * @serial: the No.(=serial*8) of external peripheral exceptions
+ */
+void armv7m_nvic_enable_all_external_irq(void *opaque, unsigned serial, bool enable);
+/**
+ * armv7m_nvic_get_active_external_irq: get all active external peripheral exceptions(i.e., read begin with 0xe000e100)
+ * @opaque: the NVIC
+ * @serial: the No.(=serial*8) of external peripheral exceptions
+ */
+uint32_t armv7m_nvic_get_active_external_irq(void *opaque, unsigned serial);
+
+/**
+ * armv7m_nvic_enable_systick: enable or disable systick interrupt
+ * @opaque: the NVIC
+ * @mode: systick control mode
+ */
+void armv7m_nvic_enable_systick(void *opaque, int mode);
