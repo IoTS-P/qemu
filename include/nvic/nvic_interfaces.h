@@ -65,9 +65,9 @@ int armv7m_nvic_complete_irq(void *opaque, int irq, bool secure);
 
 /* Interface between CPU and Interrupt controller.  */
 #ifndef CONFIG_USER_ONLY
-bool armv7m_nvic_can_take_pending_exception(void *opaque);
+bool armv7m_nvic_can_take_pending_exception(void *opaque, int *irq_num);
 #else
-static inline bool armv7m_nvic_can_take_pending_exception(void *opaque)
+static inline bool armv7m_nvic_can_take_pending_exception(void *opaque, int *irq_num)
 {
     return true;
 }

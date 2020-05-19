@@ -396,11 +396,13 @@ bool armv7m_nvic_neg_prio_requested(void *opaque, bool secure)
     return false;
 }
 
-bool armv7m_nvic_can_take_pending_exception(void *opaque)
+bool armv7m_nvic_can_take_pending_exception(void *opaque, int *irq_num)
 {
     NVICState *s = opaque;
     const int running = nvic_exec_prio(s);
     const int vectpending_prio = s->vectpending_prio;
+    const int pending = s->vectpending;
+    *irq_num = pending;
     return  running > vectpending_prio;
 }
 
