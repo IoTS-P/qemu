@@ -101,3 +101,9 @@ uint32_t armv7m_nvic_get_active_external_irq(void *opaque, unsigned serial);
  * @mode: systick control mode
  */
 void armv7m_nvic_enable_systick(void *opaque, int mode);
+
+/**
+ * armv7m_nvic_get_vtor: get current vtor (i.e, vecbase)
+ * @opaque: the NVIC
+ */
+uint32_t armv7m_nvic_get_vtor(void *opaque);

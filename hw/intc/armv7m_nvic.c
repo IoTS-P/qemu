@@ -1969,6 +1969,15 @@ void armv7m_nvic_enable_all_external_irq(void *opaque, unsigned serial, bool ena
     }
     nvic_irq_update(s);
 }
+
+uint32_t armv7m_nvic_get_vtor(void *opaque) {
+    MemTxAttrs attrs;
+
+    memset((void *)&attrs, 0, sizeof(attrs));
+    NVICState *s = (NVICState *)opaque;
+    return nvic_readl(s, 0xd08, attrs);
+}
+
 static const MemoryRegionOps nvic_sysreg_ops = {
     .read_with_attrs = nvic_sysreg_read,
     .write_with_attrs = nvic_sysreg_write,
