@@ -86,7 +86,7 @@ typedef struct {
     OBJECT_CLASS_CHECK(MPS2MachineClass, klass, TYPE_MPS2_MACHINE)
 
 /* Main SYSCLK frequency in Hz */
-#define SYSCLK_FRQ 2500000 // original 25000000
+#define SYSCLK_FRQ 2000000 // original 25000000
 
 /* Initialize the auxiliary RAM region @mr and map it into
  * the memory map at @base.
