@@ -2390,6 +2390,12 @@ int kvm_cpu_exec(CPUState *cpu)
             qemu_mutex_unlock_iothread();
             ret = 0;
             break;
+        case KVM_EXIT_SYNC_ARM_V7M_SREGS:
+            qemu_mutex_lock_iothread();
+            kvm_arch_get_registers(cpu);
+            qemu_mutex_unlock_iothread();
+            ret = 0;
+            break;
         case KVM_EXIT_CLONE_PROCESS:
             qemu_mutex_lock_iothread();
             kvm_clone_process(cpu);
