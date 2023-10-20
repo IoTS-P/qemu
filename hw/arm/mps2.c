@@ -51,6 +51,9 @@ typedef struct {
     uint32_t scc_id;
 } MPS2MachineClass;
 
+#define NUMS_ROM 5
+#define NUMS_RAM 5
+
 typedef struct {
     MachineState parent;
 
@@ -67,10 +70,8 @@ typedef struct {
     MemoryRegion sram;
     MPS2SCC scc;
     //IoTS2E only
-    MemoryRegion s2erom1;
-    MemoryRegion s2eram1;
-    MemoryRegion s2erom2;
-    MemoryRegion s2eram2;
+    MemoryRegion s2erom[NUMS_ROM];
+    MemoryRegion s2eram[NUMS_RAM];
 } MPS2MachineState;
 
 #define TYPE_MPS2_MACHINE "mps2"
@@ -116,7 +117,8 @@ static void mps2_common_init(MachineState *machine)
     MemoryRegion *system_memory = get_system_memory();
     MachineClass *mc = MACHINE_GET_CLASS(machine);
     DeviceState *armv7m, *sccdev;
-    kvm_mr rom[2], ram[2];
+    kvm_mr rom[NUMS_ROM], ram[NUMS_RAM];
+    char region_name[20];
 
     if (strcmp(machine->cpu_type, mc->default_cpu_type) != 0) {
         error_report("This board can only be used with CPU %s",
@@ -185,34 +187,34 @@ static void mps2_common_init(MachineState *machine)
         make_ram(&mms->ssram23, "mps.ssram23", 0x20400000, 0x400000);
         break;
     case FPGA_ANS2E:
-        if (kvm_register_user_custom_memory_region(&rom[0].baseaddr, &rom[0].size, 0, 1) == 0) {
-            make_ram(&mms->s2erom1, "mps.s2erom1", rom[0].baseaddr, rom[0].size);
-            kvm_register_fixed_memory_region("mps.s2erom1", (uintptr_t) memory_region_get_ram_ptr(&mms->s2erom1), rom[0].size, 1);
-        } else {
-            rom[0].baseaddr = 0x0;
-            rom[0].size = 0x400000;
-            make_ram(&mms->s2erom1, "mps.s2erom1", 0x0, 0x400000);
-            kvm_register_fixed_memory_region("mps.s2erom1", (uintptr_t) memory_region_get_ram_ptr(&mms->s2erom1),0x400000, 1);
+        // make rom 0~4
+        for (int i = 0; i < NUMS_ROM; i++) {
+            snprintf(region_name, sizeof(region_name), "mps.s2erom%d", i + 1);
+            if (kvm_register_user_custom_memory_region(&rom[i].baseaddr, &rom[i].size, i, 1) == 0) {
+                make_ram(&mms->s2erom[i], region_name, rom[i].baseaddr, rom[i].size);
+                kvm_register_fixed_memory_region(region_name, (uintptr_t) memory_region_get_ram_ptr(&mms->s2erom[i]), rom[i].size, 1);
+            } else if (i == 0){
+                rom[i].baseaddr = 0x0;
+                rom[i].size = 0x400000;
+                make_ram(&mms->s2erom[0], region_name, 0x0, 0x400000);
+                kvm_register_fixed_memory_region(region_name, (uintptr_t) memory_region_get_ram_ptr(&mms->s2erom[0]),0x400000, 1);
+            }
         }
-        if (kvm_register_user_custom_memory_region(&rom[1].baseaddr, &rom[1].size, 1, 1) == 0) {
-            make_ram(&mms->s2erom2, "mps.s2erom2", rom[1].baseaddr, rom[1].size);
-            kvm_register_fixed_memory_region("mps.s2erom2", (uintptr_t) memory_region_get_ram_ptr(&mms->s2erom2), rom[1].size, 1);
+        
+        // make ram 0~4
+        for (int i = 0; i < NUMS_ROM; i++) {
+            snprintf(region_name, sizeof(region_name), "mps.s2eram%d", i + 1);
+            if (kvm_register_user_custom_memory_region(&ram[i].baseaddr, &ram[i].size, i, 0) == 0) {
+                make_ram(&mms->s2eram[i], region_name, ram[i].baseaddr, ram[i].size);
+                kvm_register_fixed_memory_region(region_name, (uintptr_t) memory_region_get_ram_ptr(&mms->s2eram[i]), ram[i].size, 0);
+            } else if (i == 0){
+                ram[i].baseaddr = 0x20000000;
+                ram[i].size = 0x40000;
+                make_ram(&mms->s2eram[0], region_name, 0x20000000, 0x40000);
+                kvm_register_fixed_memory_region(region_name, (uintptr_t) memory_region_get_ram_ptr(&mms->s2eram[0]),0x40000, 0);
+            }
         }
 
-        if (kvm_register_user_custom_memory_region(&ram[0].baseaddr, &ram[0].size, 0, 0) == 0) {
-            make_ram(&mms->s2eram1, "mps.s2eram1", ram[0].baseaddr, ram[0].size);
-            kvm_register_fixed_memory_region("mps.s2eram1", (uintptr_t) memory_region_get_ram_ptr(&mms->s2eram1), ram[0].size, 0);
-        } else {
-            ram[0].baseaddr = 0x20000000;
-            ram[0].size = 0x40000;
-            make_ram(&mms->s2eram1, "mps.s2eram1", 0x20000000, 0x40000);
-            kvm_register_fixed_memory_region("mps.s2eram1", (uintptr_t) memory_region_get_ram_ptr(&mms->s2eram1),0x40000, 0);
-        }
-
-        if (kvm_register_user_custom_memory_region(&ram[1].baseaddr, &ram[1].size, 1, 0) == 0) {
-            make_ram(&mms->s2eram2, "mps.s2eram2", ram[1].baseaddr, ram[1].size);
-            kvm_register_fixed_memory_region("mps.s2eram2", (uintptr_t) memory_region_get_ram_ptr(&mms->s2eram2), ram[1].size, 0);
-        }
         break;
     default:
         g_assert_not_reached();
