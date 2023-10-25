@@ -798,6 +798,7 @@ void armv7m_nvic_set_external_peripheral_irq(void *opaque, int n, int level)
     armv7m_nvic_set_pending(s, n, false);
 }
 
+uint32_t value_stick = 0;
 static uint32_t nvic_readl(NVICState *s, uint32_t offset, MemTxAttrs attrs)
 {
     ARMCPU *cpu = s->cpu;
@@ -1211,6 +1212,7 @@ static uint32_t nvic_readl(NVICState *s, uint32_t offset, MemTxAttrs attrs)
         }
         return cpu->env.v7m.sfar;
     default:
+        return value_stick;
     bad_offset:
         qemu_log_mask(LOG_GUEST_ERROR, "NVIC: Bad read offset 0x%x\n", offset);
         return 0;
@@ -1671,6 +1673,7 @@ static void nvic_writel(NVICState *s, uint32_t offset, uint32_t value,
         /* Cache and branch predictor maintenance: for QEMU these always NOP */
         break;
     default:
+        value_stick = value;
     bad_offset:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "NVIC: Bad write offset 0x%x\n", offset);
