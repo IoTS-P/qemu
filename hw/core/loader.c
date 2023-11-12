@@ -420,6 +420,77 @@ fail:
     close(fd);
 }
 
+int load_bin_as(const char *filename, uint64_t *pentry, uint64_t *lowaddr, AddressSpace *as)
+{
+    int cfgfd, cfgsz;
+    char *cfgname = g_malloc(strlen(filename)+1);
+    char *last_dot = strrchr(filename, '.');
+    int rom_start = 0;
+    int rom_size = 0;
+
+    if (last_dot) {
+        strncpy(cfgname, filename, last_dot - filename);
+        strncpy(cfgname + (last_dot - filename), ".cfg\0", 5);
+    } else {
+        return -1;
+    }
+    info_report("cfgname: %s\n", cfgname);
+    
+    cfgfd = open(cfgname, O_RDONLY | O_BINARY);
+    if (cfgfd < 0) {
+        perror(cfgname);
+        return -1;
+    }
+    cfgsz = get_image_size(cfgname);
+    if (cfgsz < 0) {
+        return -1;
+    }
+    char *cfgdata = g_malloc(cfgsz);
+    if (read(cfgfd, cfgdata, cfgsz) != cfgsz) {
+        return -1;
+    }
+    close(cfgfd);
+
+    char *line = strtok(cfgdata, "\n");
+    bool in_mem_config_section = false;
+    while (line) {
+        if (strncmp(line, "[MEM_Config]", 12) == 0) {
+            in_mem_config_section = true;
+        } else if (line[0] == '[' && in_mem_config_section) {
+            break;
+        }
+
+        if (in_mem_config_section) {
+            if (strncmp(line, "rom =", 5) == 0) {
+                char *rom_str = line + 5;
+                rom_start = strtoull(strtok(rom_str, ","), NULL, 0);
+                rom_size = strtoull(strtok(NULL, ","), NULL, 0);
+            }
+        }
+        line = strtok(NULL, "\n");
+    }
+    info_report("rom_start: %x, rom_size: %x\n", rom_start, rom_size);
+    free(cfgname);
+    free(cfgdata);
+    *lowaddr = 0x0;
+    int fd, size;
+    uint8_t *data = NULL;
+    fd = open(filename, O_RDONLY | O_BINARY);
+    if (fd < 0)
+        return -1;
+    size = get_image_size(filename);
+    if (size < 0) {
+        return -1;
+    }
+    data = g_malloc(size);
+    if (read(fd, data, size) != size) {
+        return -1;
+    }
+    rom_add_elf_program("rom", data, size, size, rom_start, as);
+    return 1;
+}
+
+
 /* return < 0 if error, otherwise the number of bytes loaded in memory */
 int load_elf(const char *filename, uint64_t (*translate_fn)(void *, uint64_t),
              void *translate_opaque, uint64_t *pentry, uint64_t *lowaddr,

@@ -145,6 +145,8 @@ int load_elf(const char *filename, uint64_t (*translate_fn)(void *, uint64_t),
  */
 void load_elf_hdr(const char *filename, void *hdr, bool *is64, Error **errp);
 
+int load_bin_as(const char *filename, uint64_t *pentry, uint64_t *lowaddr, AddressSpace *as);
+
 int load_aout(const char *filename, hwaddr addr, int max_sz,
               int bswap_needed, hwaddr target_page_size);
 
